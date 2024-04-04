@@ -59,6 +59,7 @@ def eval_one_epoch(cfg, args, model, dataloader, epoch_id, logger, dist_test=Fal
         load_data_to_gpu(batch_dict)
 
         if getattr(args, 'infer_time', False):
+            torch.cuda.synchronize()
             start_time = time.time()
 
         with torch.no_grad():
@@ -67,6 +68,7 @@ def eval_one_epoch(cfg, args, model, dataloader, epoch_id, logger, dist_test=Fal
         disp_dict = {}
 
         if getattr(args, 'infer_time', False):
+            torch.cuda.synchronize()
             inference_time = time.time() - start_time
             infer_time_meter.update(inference_time * 1000)
             # use ms to measure inference time
