@@ -52,6 +52,42 @@ def eval_one_epoch(cfg, args, model, dataloader, epoch_id, logger, dist_test=Fal
         )
     model.eval()
 
+    if getattr(args, 'only_infer_time', False):
+        assert dataloader.batch_size == 1
+
+        data_iter = iter(dataloader) 
+        
+        infer_times = []
+        n_batch_to_measure = getattr(args, 'num_iters_to_check', 1250)
+        n_batch_to_warmup = getattr(args, 'warmup_iters', 250)
+        for batch_idx in tqdm.tqdm(range(n_batch_to_measure)):
+            try:
+                batch_dict = next(data_iter) 
+            except StopIteration:
+                data_iter = iter(dataloader)
+                batch_dict = next(data_iter)
+            
+            load_data_to_gpu(batch_dict)
+
+            torch.cuda.synchronize()
+            start_time = time.time()
+
+            with torch.no_grad():
+                pred_dicts, ret_dict = model(batch_dict)
+
+            torch.cuda.synchronize()
+            inference_time = (time.time() - start_time) * 1000   
+
+            if batch_idx >= n_batch_to_warmup:
+                infer_times.append(inference_time)
+
+        infer_times = np.array(infer_times)
+        measured_iters = n_batch_to_measure - n_batch_to_warmup
+        print(f"Inference time in ms for {measured_iters} iterations:")
+        print(f"mean: {infer_times.mean()}, std: {infer_times.std()}")
+
+        return {}
+
     if cfg.LOCAL_RANK == 0:
         progress_bar = tqdm.tqdm(total=len(dataloader), leave=True, desc='eval', dynamic_ncols=True)
     start_time = time.time()

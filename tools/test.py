@@ -39,7 +39,12 @@ def parse_config():
     parser.add_argument('--eval_all', action='store_true', default=False, help='whether to evaluate all checkpoints')
     parser.add_argument('--ckpt_dir', type=str, default=None, help='specify a ckpt directory to be evaluated if needed')
     parser.add_argument('--save_to_file', action='store_true', default=False, help='')
-    parser.add_argument('--infer_time', action='store_true', default=False, help='calculate inference latency')
+    parser.add_argument('--infer_time', action='store_true', default=False, help='calculate inference latency and calc metrics')
+    parser.add_argument('--only_infer_time', action='store_true', default=False, help='only calculate inference latency')
+    parser.add_argument('--num_iters_to_check', type=int, default=1250, required=False, 
+        help='number of iterations(including warmup) for measuring inference latency')
+    parser.add_argument('--warmup_iters', type=int, default=250, required=False, 
+        help='number of warmup iterations for measuring inference latency')
 
     args = parser.parse_args()
 
