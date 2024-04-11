@@ -1,55 +1,38 @@
-FROM nvidia/cuda:10.2-cudnn7-devel-ubuntu18.04
+# Based on https://github.com/VISION-SJTU/PillarNet-LTS/blob/2cfa24537cd8974a579a39f57426957bb9d8b134/docker/Dockerfile
+FROM pytorch/pytorch:1.12.1-cuda11.3-cudnn8-devel
 
-RUN echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+ENV TORCH_CUDA_ARCH_LIST="6.0 6.1 7.0+PTX"
+ENV TORCH_NVCC_FLAGS="-Xfatbin -compress-all"
+ENV CMAKE_PREFIX_PATH="$(dirname $(which conda))/../"
+
+# To fix GPG key error when running apt-get update
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/3bf863cc.pub
+RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/machine-learning/repos/ubuntu1804/x86_64/7fa2af80.pub
 
 # Install basics
-RUN apt-get update -y \
-    && apt-get install build-essential \
-    && apt-get install -y apt-utils git curl ca-certificates bzip2 tree htop wget \
-    && apt-get install -y libglib2.0-0 libsm6 libxext6 libxrender-dev bmon iotop g++ python3.7 python3.7-dev python3.7-distutils
+RUN apt-get update && apt-get install -y \
+    ffmpeg libsm6 libxext6 git ninja-build libglib2.0-0 \
+    libsm6 libxrender-dev libxext6 nano \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install cmake v3.13.2
-RUN apt-get purge -y cmake && \
-    mkdir /root/temp && \
-    cd /root/temp && \
-    wget https://github.com/Kitware/CMake/releases/download/v3.13.2/cmake-3.13.2.tar.gz && \
-    tar -xzvf cmake-3.13.2.tar.gz && \
-    cd cmake-3.13.2 && \
-    bash ./bootstrap && \
-    make && \
-    make install && \
-    cmake --version && \
-    rm -rf /root/temp
+ENV PATH="/usr/local/cuda-11.3/bin:$PATH"
+ENV CUDA_PATH="/usr/local/cuda-11.3"
+ENV CUDA_HOME="/usr/local/cuda-11.3"
+ENV LD_LIBRARY_PATH="/usr/local/cuda-11.3/lib64:$LD_LIBRARY_PATH"
 
-# Install python
-RUN ln -sv /usr/bin/python3.7 /usr/bin/python
-RUN wget https://bootstrap.pypa.io/get-pip.py && \
-	python get-pip.py && \
-	rm get-pip.py
+# Python packages for VoxelNeXt setup
+RUN pip install --no-cache-dir spconv-cu113==2.3.6 scikit-image==0.19.3 numba==0.53.1
 
-# Install python packages
-RUN PIP_INSTALL="python -m pip --no-cache-dir install" && \
-    $PIP_INSTALL numpy==1.19.3 llvmlite numba 
+# VoxelNeXt setup (it takes a long time)
+RUN git clone https://github.com/Gaussiandra/VoxelNeXt.git -b ml3d_viz
+WORKDIR /workspace/VoxelNeXt
+RUN python setup.py develop
 
-# Install torch and torchvision
-# See https://pytorch.org/ for other options if you use a different version of CUDA
-RUN pip install --user torch==1.6 torchvision==0.7.0 -f https://download.pytorch.org/whl/cu102/torch_stable.html
+# Other python packages
+RUN pip install --no-cache-dir gdown matplotlib opencv_python nuscenes_devkit gpustat
+RUN pip install --no-cache-dir torch-scatter -f https://data.pyg.org/whl/torch-1.12.1+cu113.html
 
-# Install python packages
-RUN PIP_INSTALL="python -m pip --no-cache-dir install" && \
-    $PIP_INSTALL tensorboardX easydict pyyaml scikit-image tqdm SharedArray six
+# Download checkpoint from google drive
+RUN gdown 1IV7e7G9X-61KXSjMGtQo579pzDNbhwvf -O cbgs_voxel0075_voxelnext.pth
 
-WORKDIR /root
-
-# Install Boost geometry
-RUN wget https://jaist.dl.sourceforge.net/project/boost/boost/1.68.0/boost_1_68_0.tar.gz && \
-    tar xzvf boost_1_68_0.tar.gz && \
-    cp -r ./boost_1_68_0/boost /usr/include && \
-    rm -rf ./boost_1_68_0 && \
-    rm -rf ./boost_1_68_0.tar.gz 
-
-# A weired problem that hasn't been solved yet
-RUN pip uninstall -y SharedArray && \
-    pip install SharedArray
-
-RUN pip install spconv-cu102
