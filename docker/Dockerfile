@@ -1,5 +1,5 @@
 # Based on https://github.com/VISION-SJTU/PillarNet-LTS/blob/2cfa24537cd8974a579a39f57426957bb9d8b134/docker/Dockerfile
-FROM pytorch/pytorch:1.12.1-cuda11.3-cudnn8-devel
+FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-devel
 
 ENV TORCH_CUDA_ARCH_LIST="6.0 6.1 7.0+PTX"
 ENV TORCH_NVCC_FLAGS="-Xfatbin -compress-all"
@@ -16,13 +16,13 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-ENV PATH="/usr/local/cuda-11.3/bin:$PATH"
-ENV CUDA_PATH="/usr/local/cuda-11.3"
-ENV CUDA_HOME="/usr/local/cuda-11.3"
-ENV LD_LIBRARY_PATH="/usr/local/cuda-11.3/lib64:$LD_LIBRARY_PATH"
+ENV PATH="/usr/local/cuda-12.1/bin:$PATH"
+ENV CUDA_PATH="/usr/local/cuda-12.1"
+ENV CUDA_HOME="/usr/local/cuda-12.1"
+ENV LD_LIBRARY_PATH="/usr/local/cuda-12.1/lib64:$LD_LIBRARY_PATH"
 
 # Python packages for VoxelNeXt setup
-RUN pip install --no-cache-dir spconv-cu113==2.3.6 scikit-image==0.19.3 numba==0.53.1
+RUN pip install --no-cache-dir spconv-cu120==2.3.6 scikit-image==0.19.3 numba==0.59.1
 
 # VoxelNeXt setup (it takes a long time)
 RUN git clone https://github.com/Gaussiandra/VoxelNeXt.git -b ml3d_viz
@@ -31,7 +31,7 @@ RUN python setup.py develop
 
 # Other python packages
 RUN pip install --no-cache-dir gdown matplotlib opencv_python nuscenes_devkit gpustat
-RUN pip install --no-cache-dir torch-scatter -f https://data.pyg.org/whl/torch-1.12.1+cu113.html
+RUN pip install --no-cache-dir torch-scatter -f https://data.pyg.org/whl/torch-2.3.0+cu121.html
 
 # Download checkpoint from google drive
 RUN gdown 1IV7e7G9X-61KXSjMGtQo579pzDNbhwvf -O cbgs_voxel0075_voxelnext.pth
