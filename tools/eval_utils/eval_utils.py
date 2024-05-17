@@ -67,6 +67,32 @@ def eval_one_epoch(cfg, args, model, dataloader, epoch_id, logger, dist_test=Fal
                 data_iter = iter(dataloader)
                 batch_dict = next(data_iter)
             
+            print(batch_dict.keys())
+            print(batch_dict["points"].shape)
+            print(batch_dict["points"][0])
+            print(batch_dict["points"][:, 5].sum()) ##????
+            print("use_lead_xyz", batch_dict["use_lead_xyz"])
+            print("voxels", batch_dict["voxels"].shape)
+            print("voxels[0]", batch_dict["voxels"][0])
+            print("voxel_coords", batch_dict["voxel_coords"].shape)
+            print("voxel_num_points", batch_dict["voxel_num_points"].shape)
+            print("batch_size", batch_dict["batch_size"])
+                # print(batch_dict.keys())
+            # print(batch_dict["points"].shape)
+            # print(batch_dict["points"][0])
+            # print(batch_dict["points"][:, 5].sum())
+            # # frame_id', 'metadata', 'gt_boxes', 'use_lead_xyz', 'voxels', 'voxel_coords', 'voxel_num_points', 'batch_size']
+            # print("frame_id", batch_dict["frame_id"])
+            # print("metadata", batch_dict["metadata"])
+            # print("use_lead_xyz", batch_dict["use_lead_xyz"])
+            # print("voxels", batch_dict["voxels"].shape)
+            # print("voxels[0]", batch_dict["voxels"][0])
+            # print("voxel_coords", batch_dict["voxel_coords"].shape)
+            # print("voxel_coords", batch_dict["voxel_coords"][:20], batch_dict["voxel_coords"][:, 0].sum())
+            # print("voxel_num_points", batch_dict["voxel_num_points"].shape)
+            # print("batch_size", batch_dict["batch_size"])
+
+            # assert False
             load_data_to_gpu(batch_dict)
 
             torch.cuda.synchronize()
@@ -74,6 +100,22 @@ def eval_one_epoch(cfg, args, model, dataloader, epoch_id, logger, dist_test=Fal
 
             with torch.no_grad():
                 pred_dicts, ret_dict = model(batch_dict)
+                print(len(pred_dicts), pred_dicts[0].keys())
+                print('pred_boxes', pred_dicts[0]["pred_boxes"][0])
+                print('pred_scores', pred_dicts[0]["pred_scores"][0])
+                print('pred_labels', pred_dicts[0]["pred_labels"][0])
+                print('pred_ious', len(pred_dicts[0]["pred_ious"]), pred_dicts[0]["pred_ious"])
+
+                print(ret_dict.keys())
+                print(ret_dict['gt'])
+                print(ret_dict['roi_0.3'])
+                print(ret_dict['rcnn_0.3'])
+                print(ret_dict['roi_0.5'])
+                print(ret_dict['rcnn_0.5'])
+                print(ret_dict['roi_0.7'])
+                print(ret_dict['rcnn_0.7'])
+                # 'gt', 'roi_0.3', 'rcnn_0.3', 'roi_0.5', 'rcnn_0.5', 'roi_0.7', 'rcnn_0.7'
+                assert False
 
             torch.cuda.synchronize()
             inference_time = (time.time() - start_time) * 1000   
