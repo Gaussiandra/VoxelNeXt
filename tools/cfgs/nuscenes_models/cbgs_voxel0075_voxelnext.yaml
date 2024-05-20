@@ -118,7 +118,7 @@ MODEL:
             }
 
         POST_PROCESSING:
-            SCORE_THRESH: 0.5
+            SCORE_THRESH: 0.4
             POST_CENTER_LIMIT_RANGE: [-61.2, -61.2, -10.0, 61.2, 61.2, 10.0]
             MAX_OBJ_PER_SAMPLE: 500
             NMS_CONFIG:

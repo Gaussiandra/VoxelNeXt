@@ -18,20 +18,25 @@ class Detection3DHandler:
     def __init__(self):
         rospy.init_node('pointcloud_detector', anonymous=True)
 
-        self.rviz_v = RvizVisualizer()
-        self.rviz_publisher = rospy.Publisher('/detection_3d_markers', MarkerArray, queue_size=10)
-
         self.args, self.cfg = self.parse_config()
         self.detector = StreamingDetector(self.cfg, self.args.ckpt)
         self.preds_publisher = None
 
-        top_lidar_sub = message_filters.Subscriber('/lidar_top', PointCloud2)
-        # top_lidar_sub = message_filters.Subscriber('/ouster_top_timestamped/points', PointCloud2)
-        # left_lidar_sub = message_filters.Subscriber('/ouster_left_timestamped/points', PointCloud2)
-        # right_lidar_sub = message_filters.Subscriber('/ouster_right_timestamped/points', PointCloud2)
+        self.rviz_v = RvizVisualizer(header="base_link")
+        # self.rviz_v = RvizVisualizer(header="lidar_top")
+        self.rviz_publisher = rospy.Publisher('/detection_3d_markers', MarkerArray, queue_size=10)
+
+        # top_lidar_sub = message_filters.Subscriber('/lidar_top', PointCloud2)
+        # all_subs = [top_lidar_sub]
+
+        top_lidar_sub = message_filters.Subscriber('/ouster_top_timestamped/points', PointCloud2)
+        left_lidar_sub = message_filters.Subscriber('/ouster_left_timestamped/points', PointCloud2)
+        right_lidar_sub = message_filters.Subscriber('/ouster_right_timestamped/points', PointCloud2)
         # rear_lidar_sub = message_filters.Subscriber('/lslidar_point_cloud', PointCloud2)
+        all_subs = [top_lidar_sub, left_lidar_sub, right_lidar_sub]#, rear_lidar_sub]
+
         ts = message_filters.ApproximateTimeSynchronizer(
-            [top_lidar_sub],#, left_lidar_sub, right_lidar_sub],#, rear_lidar_sub],
+            all_subs,
             queue_size=10,
             slop=0.5 # почему так много?
         )
@@ -54,27 +59,25 @@ class Detection3DHandler:
 
         return args, cfg
             
-    def transform_to_bin(self, top):#, left, right):
-        top = ros_numpy.numpify(top)
-        print(top.shape)
-        #left = ros_numpy.numpify(left)
-        #right = ros_numpy.numpify(right)
-        # print(top.shape, left.shape, right.shape)
-        # rear = ros_numpy.numpify(rear)
-        point_cloud = top#np.concatenate([top, left, right], axis=0)
-        # print(point_cloud.shape)
-        
+    def transform_to_bin(self, *all_lidar_pc):
+        numpified_pcs = []
+        for idx in range(len(all_lidar_pc)):
+            numpified_pcs.append(ros_numpy.numpify(all_lidar_pc[idx]))
+
+        point_cloud = np.concatenate(numpified_pcs, axis=0)
+
         n_used_features = 5
-        # points = np.zeros((point_cloud.shape[0], point_cloud.shape[1], n_used_features))
-        points = np.zeros((point_cloud.shape[0], n_used_features))
+        points = np.zeros((*point_cloud.shape, n_used_features))
     
-        points[:, 0] = point_cloud['x']
-        points[:, 1] = point_cloud['y']
-        points[:, 2] = point_cloud['z']
-        points[:, 3] = point_cloud['intensity']
-        points[:, 4] = 0 # for timestamp
+        points[..., 0] = point_cloud['x']
+        points[..., 1] = point_cloud['y']
+        points[..., 2] = point_cloud['z']
+        points[..., 3] = point_cloud['intensity']
+        points[..., 4] = 0 # for timestamp
 
         points = np.array(points, dtype=np.float32).reshape(-1, n_used_features)
+        print(points.shape)
+
         return points
 
     def rviz_update(self, pred_dict):
@@ -83,17 +86,22 @@ class Detection3DHandler:
         marker_array = MarkerArray()
         for idx in range(len(pred_dict["pred_boxes"])):
             bbox = pred_dict["pred_boxes"][idx]
+            xyz_center = bbox[: 3]
+            xyz_sizes = bbox[3: 6]
+            angle = np.rad2deg(bbox[6].cpu())
+
             score = pred_dict["pred_scores"][idx]
             label = pred_dict["pred_labels"][idx]
+            label_name = self.cfg.CLASS_NAMES[label - 1]
 
             cur_marker = self.rviz_v.get_marker(
-                center=bbox[: 3],
-                sizes=bbox[3: 6],
-                angles=(bbox[6], 0, 0)
+                center=xyz_center,
+                sizes=xyz_sizes,
+                angles=(angle, 0, 0)
             )
             marker_array.markers.append(cur_marker)
-
-            str_to_vis = f"{label}_{score:.3f}"
+            
+            str_to_vis = f"{label_name} {score:.2f}"
             text_cur_marker = self.rviz_v.set_text_beside_marker(
                 cur_marker, 
                 text=str_to_vis
@@ -105,9 +113,8 @@ class Detection3DHandler:
     def send_predicts(self):
         pass
 
-    def callback(self, top):#, left, right):
-
-        points = self.transform_to_bin(top)#, left, right)
+    def callback(self, *all_lidar_pc):
+        points = self.transform_to_bin(*all_lidar_pc)
         
         pred_dicts = self.detector.predict_from_normalized_data(points)
 

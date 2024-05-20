@@ -1,16 +1,17 @@
 from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
+from scipy.spatial.transform import Rotation
 
 class RvizVisualizer:
-    def __init__(self):
-        self.HEADER = "base_link"
+    def __init__(self, header):
+        self.header = header
 
         self.cur_marker_max_idx = -1
-        # self.class_idx_to_name = {}
 
         self.__delete_all_arr = MarkerArray()
         m = Marker()
         m.action = Marker.DELETEALL
+        # заменить на latency
         self.__delete_all_arr.markers.append(m)
     
     def delete_all_markers(self):
@@ -19,7 +20,7 @@ class RvizVisualizer:
 
     def get_marker(self, center, sizes, angles, class_idx=None, proba=None):
         marker = Marker()
-        marker.header.frame_id = self.HEADER
+        marker.header.frame_id = self.header
         marker.type = marker.CUBE
         marker.action = marker.ADD
 
@@ -31,20 +32,24 @@ class RvizVisualizer:
         marker.scale.y = sizes[1]
         marker.scale.z = sizes[2]
 
-        # добавить выбор цвета в зависимоти от класса
-        # добавить отображение текста и вероятности
+        # TODO: добавить выбор цвета в зависимоти от класса
         marker.color.a = 0.5
         marker.color.r = 1.0
         marker.color.g = 1.0
         marker.color.b = 0.0
-        marker.pose.orientation.w = 1.0
+        
+        orientation = Rotation.from_euler("z", angles[0], degrees=True).as_quat()
+        marker.pose.orientation.x = orientation[0]
+        marker.pose.orientation.y = orientation[1]
+        marker.pose.orientation.z = orientation[2]
+        marker.pose.orientation.w = orientation[3]
 
         self.cur_marker_max_idx += 1
         marker.id = self.cur_marker_max_idx
 
         return marker
     
-    def set_text_beside_marker(self, key_marker, text, text_size=0.33):
+    def set_text_beside_marker(self, key_marker, text, text_size=1):
         marker = Marker()
 
         marker.type = marker.TEXT_VIEW_FACING
