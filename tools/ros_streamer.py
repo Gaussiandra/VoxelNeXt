@@ -4,9 +4,12 @@ import ros_numpy
 import message_filters
 
 import numpy as np
+from scipy.spatial.transform import Rotation
 
 from pcdet.config import cfg, cfg_from_yaml_file
 from sensor_msgs.msg import PointCloud2
+# import std_msgs.msg
+# import sensor_msgs.point_cloud2 as pcl2
 
 from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
@@ -30,10 +33,12 @@ class Detection3DHandler:
         # all_subs = [top_lidar_sub]
 
         top_lidar_sub = message_filters.Subscriber('/ouster_top_timestamped/points', PointCloud2)
-        left_lidar_sub = message_filters.Subscriber('/ouster_left_timestamped/points', PointCloud2)
-        right_lidar_sub = message_filters.Subscriber('/ouster_right_timestamped/points', PointCloud2)
+        # left_lidar_sub = message_filters.Subscriber('/ouster_left_timestamped/points', PointCloud2)
+        # right_lidar_sub = message_filters.Subscriber('/ouster_right_timestamped/points', PointCloud2)
         # rear_lidar_sub = message_filters.Subscriber('/lslidar_point_cloud', PointCloud2)
-        all_subs = [top_lidar_sub, left_lidar_sub, right_lidar_sub]#, rear_lidar_sub]
+        all_subs = [top_lidar_sub]#, left_lidar_sub, right_lidar_sub]#, rear_lidar_sub]
+
+        # self.pcl_pub = rospy.Publisher("/my_pcl_topic", PointCloud2)
 
         ts = message_filters.ApproximateTimeSynchronizer(
             all_subs,
@@ -76,7 +81,27 @@ class Detection3DHandler:
         points[..., 4] = 0 # for timestamp
 
         points = np.array(points, dtype=np.float32).reshape(-1, n_used_features)
-        print(points.shape)
+
+        # rotate
+        tf_matrix = np.eye(4, dtype=float)
+        rotation_matrix = Rotation.from_rotvec([0.008, -0.213, 0]).as_matrix().astype(float)
+        tf_matrix[:3, :3] = rotation_matrix
+        tf_matrix_top_to_base = tf_matrix
+        tf_matrix_top_to_base = np.linalg.inv(tf_matrix_top_to_base)
+        tf_matrix_top_to_base[:, 3] = [1.4, 0, 2.25, 1.0]
+
+        xyz_points = points[:, :3]
+        xyz_points = np.concatenate([xyz_points, np.ones((xyz_points.shape[0], 1))], axis=1)
+        xyz_points = tf_matrix_top_to_base @ xyz_points.T
+        points[:, :3] = xyz_points.T[:, :3]
+
+        # # publish
+        # header = std_msgs.msg.Header()
+        # header.stamp = rospy.Time.now()
+        # header.frame_id = 'map'
+
+        # scaled_polygon_pcl = pcl2.create_cloud_xyz32(header, points[:, :3].tolist())
+        # pcl_pub.publish(scaled_polygon_pcl)
 
         return points
 
