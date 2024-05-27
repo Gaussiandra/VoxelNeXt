@@ -11,6 +11,8 @@ from sensor_msgs.msg import PointCloud2
 # import std_msgs.msg
 # import sensor_msgs.point_cloud2 as pcl2
 
+# import tf
+
 from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
 
@@ -25,20 +27,20 @@ class Detection3DHandler:
         self.detector = StreamingDetector(self.cfg, self.args.ckpt)
         self.preds_publisher = None
 
-        self.rviz_v = RvizVisualizer(header="base_link")
-        # self.rviz_v = RvizVisualizer(header="lidar_top")
-        self.rviz_publisher = rospy.Publisher('/detection_3d_markers', MarkerArray, queue_size=10)
+        self.rviz_publisher = rospy.Publisher('/detection_3d_markers', MarkerArray, queue_size=10) #10?
 
-        # top_lidar_sub = message_filters.Subscriber('/lidar_top', PointCloud2)
-        # all_subs = [top_lidar_sub]
-
-        top_lidar_sub = message_filters.Subscriber('/ouster_top_timestamped/points', PointCloud2)
-        # left_lidar_sub = message_filters.Subscriber('/ouster_left_timestamped/points', PointCloud2)
-        # right_lidar_sub = message_filters.Subscriber('/ouster_right_timestamped/points', PointCloud2)
-        # rear_lidar_sub = message_filters.Subscriber('/lslidar_point_cloud', PointCloud2)
-        all_subs = [top_lidar_sub]#, left_lidar_sub, right_lidar_sub]#, rear_lidar_sub]
-
-        # self.pcl_pub = rospy.Publisher("/my_pcl_topic", PointCloud2)
+        self.debug_on_nusc_bag = False
+        if self.debug_on_nusc_bag:
+            self.rviz_v = RvizVisualizer(header="lidar_top")
+            top_lidar_sub = message_filters.Subscriber('/lidar_top', PointCloud2)
+            all_subs = [top_lidar_sub]
+        else:
+            self.rviz_v = RvizVisualizer(header="base_link") # TODO: move to config
+            top_lidar_sub = message_filters.Subscriber('/ouster_top_timestamped/points', PointCloud2)
+            # left_lidar_sub = message_filters.Subscriber('/ouster_left_timestamped/points', PointCloud2)
+            # right_lidar_sub = message_filters.Subscriber('/ouster_right_timestamped/points', PointCloud2)
+            # rear_lidar_sub = message_filters.Subscriber('/lslidar_point_cloud', PointCloud2)
+            all_subs = [top_lidar_sub]#, left_lidar_sub, right_lidar_sub]#, rear_lidar_sub]
 
         ts = message_filters.ApproximateTimeSynchronizer(
             all_subs,
@@ -63,7 +65,24 @@ class Detection3DHandler:
         cfg_from_yaml_file(args.cfg_file, cfg)
 
         return args, cfg
-            
+    
+    def translate_and_rotate(self, points, trans=None, rotvec=None):
+        if self.debug_on_nusc_bag:
+            return points
+
+        tf_matrix = np.eye(4, dtype=float)
+        rotation_matrix = Rotation.from_rotvec([0.008, -0.213, 0]).as_matrix().astype(float)
+        tf_matrix[:3, :3] = rotation_matrix
+        tf_matrix_top_to_base = tf_matrix
+        tf_matrix_top_to_base = np.linalg.inv(tf_matrix_top_to_base)
+        tf_matrix_top_to_base[:, 3] = [1.4, 0, 2.25, 1.0]
+
+        pcd_top_expanded = np.concatenate([points, np.ones((points.shape[0], 1))], axis=1)
+        pcd_top_transformed = tf_matrix_top_to_base @ pcd_top_expanded.T
+        pcd_top_transformed = pcd_top_transformed.T[:, :3]
+
+        return pcd_top_transformed
+
     def transform_to_bin(self, *all_lidar_pc):
         numpified_pcs = []
         for idx in range(len(all_lidar_pc)):
@@ -81,27 +100,27 @@ class Detection3DHandler:
         points[..., 4] = 0 # for timestamp
 
         points = np.array(points, dtype=np.float32).reshape(-1, n_used_features)
+        points[:, :3] = self.translate_and_rotate(
+            points[:, :3], 
+            # trans=np.array([-0.894, 0.019, -2.495]),
+            # rotvec=np.array([0.008, -0.212, -0.001])
+        )
 
-        # rotate
-        tf_matrix = np.eye(4, dtype=float)
-        rotation_matrix = Rotation.from_rotvec([0.008, -0.213, 0]).as_matrix().astype(float)
-        tf_matrix[:3, :3] = rotation_matrix
-        tf_matrix_top_to_base = tf_matrix
-        tf_matrix_top_to_base = np.linalg.inv(tf_matrix_top_to_base)
-        tf_matrix_top_to_base[:, 3] = [1.4, 0, 2.25, 1.0]
+        # import matplotlib.pyplot as plt
+        # fig, ax = plt.subplots(nrows=1, ncols=3)
 
-        xyz_points = points[:, :3]
-        xyz_points = np.concatenate([xyz_points, np.ones((xyz_points.shape[0], 1))], axis=1)
-        xyz_points = tf_matrix_top_to_base @ xyz_points.T
-        points[:, :3] = xyz_points.T[:, :3]
+        # ax[0].scatter(points[:, 0], points[:, 2], alpha=0.3, edgecolors='none')
+        # ax[0].set_title("XZ")
+        # ax[0].grid(True)
+        # ax[1].scatter(points[:, 1], points[:, 2], alpha=0.3, edgecolors='none')
+        # ax[1].set_title("YZ")
+        # ax[1].grid(True)
+        # ax[2].scatter(points[:, 0], points[:, 1], alpha=0.3, edgecolors='none')
+        # ax[2].set_title("XY")
+        # ax[2].grid(True)
 
-        # # publish
-        # header = std_msgs.msg.Header()
-        # header.stamp = rospy.Time.now()
-        # header.frame_id = 'map'
-
-        # scaled_polygon_pcl = pcl2.create_cloud_xyz32(header, points[:, :3].tolist())
-        # pcl_pub.publish(scaled_polygon_pcl)
+        # plt.show()
+        # assert False
 
         return points
 
