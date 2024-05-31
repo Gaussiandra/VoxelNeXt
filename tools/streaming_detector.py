@@ -3,6 +3,8 @@ import numpy as np
 from pcdet.datasets.nuscenes.nuscenes_dataset import NuScenesDataset
 from pcdet.models import build_network, load_data_to_gpu
 from pcdet.utils import common_utils
+import matplotlib.pyplot as plt
+import time
 
 class StreamingDetector:
     def __init__(self, cfg, ckpt_path):
@@ -36,12 +38,25 @@ class StreamingDetector:
         }
 
         # print("points before prepare_data", data_dict["points"])
+        t = time.time()
         data_dict = self.dataset.prepare_data(data_dict=data_dict)
         data_dict = self.dataset.collate_batch([data_dict])
+        print(np.mean(points, axis=0), np.mean(data_dict["points"], axis=0))
+        print("prep + collate", time.time() - t)
+        t = time.time()
+        # fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+        # ax.scatter(data_dict["points"][:, 1], data_dict["points"][:, 2], data_dict["points"][:, 3])
+        # ax.set_xlim(-10, 10)
+        # ax.set_ylim(-10, 10)
+        # ax.set_zlim(-10, 10)
+        # ax.set(xticklabels=[],
+        #     yticklabels=[],
+        #     zticklabels=[])
 
         # print(data_dict.keys())
         # print(data_dict["points"].shape)
-        # print(data_dict["points"][0])
+        # print(data_dict["points"])
+        # assert False
         # print(data_dict["points"][:, 5].sum()) ##????
         # print("use_lead_xyz", data_dict["use_lead_xyz"])
         # print("voxels", data_dict["voxels"].shape)
@@ -75,17 +90,30 @@ class StreamingDetector:
         # # points
         # fig, ax = plt.subplots(nrows=1, ncols=3)
         # xyz = data_dict["points"][:, 1:4]
-        # ax[0].scatter(xyz[:, 0], xyz[:, 1], alpha=0.1, edgecolors='none')
+        # ax[0].scatter(xyz[:, 0], xyz[:, 1], alpha=0.01, edgecolors='none')
+        # ax[0].scatter(points[:, 0], points[:, 1], alpha=0.01, edgecolors='none', color="r")
         # ax[0].set_title("XY")
+        # ax[0].set_xlim(-10, 10)
+        # ax[0].set_ylim(-10, 10)
+        # ax[0].set_aspect('equal', adjustable='box')
         # ax[0].grid(True)
         
-        # ax[1].scatter(xyz[:, 0], xyz[:, 2], alpha=0.1, edgecolors='none')
+        # ax[1].scatter(xyz[:, 0], xyz[:, 2], alpha=0.01, edgecolors='none')
+        # ax[1].scatter(points[:, 0], points[:, 2], alpha=0.01, edgecolors='none', color="r")
         # ax[1].set_title("XZ")
+        # ax[1].set_xlim(-10, 10)
+        # ax[1].set_ylim(-10, 10)
+        # ax[1].set_aspect('equal', adjustable='box')
         # ax[1].grid(True)
 
-        # ax[2].scatter(xyz[:, 1], xyz[:, 2], alpha=0.1, edgecolors='none')
+        # ax[2].scatter(xyz[:, 1], xyz[:, 2], alpha=0.01, edgecolors='none')
+        # ax[2].scatter(points[:, 1], points[:, 2], alpha=0.01, edgecolors='none', color="r")
         # ax[2].set_title("YZ")
+        # ax[2].set_xlim(-10, 10)
+        # ax[2].set_ylim(-10, 10)
+        # ax[2].set_aspect('equal', adjustable='box')
         # ax[2].grid(True)
+        # plt.show()
         # plt.savefig(f"/workspace/level5_bags/points_{suffix}.png", dpi=400, bbox_inches='tight')
 
         # # voxel_coords
@@ -128,10 +156,12 @@ class StreamingDetector:
         # assert False
 
         load_data_to_gpu(data_dict)
-
+        print("load", time.time() - t)
+        t = time.time()
         # TODO: add FP16 convertion
         with torch.no_grad():
             pred_dicts, _ = self.model(data_dict)
             print(pred_dicts[0]["pred_boxes"].shape)
-
+        print("model", time.time() - t)
+        # t = time.time()
         return pred_dicts
