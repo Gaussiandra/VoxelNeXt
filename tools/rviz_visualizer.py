@@ -1,7 +1,7 @@
 from visualization_msgs.msg import Marker
 from visualization_msgs.msg import MarkerArray
 from scipy.spatial.transform import Rotation
-
+import rospy 
 class RvizVisualizer:
     def __init__(self, header):
         self.header = header
@@ -31,12 +31,12 @@ class RvizVisualizer:
         marker.scale.x = sizes[0]
         marker.scale.y = sizes[1]
         marker.scale.z = sizes[2]
-
+        marker.lifetime = rospy.Duration(1)
         # TODO: добавить выбор цвета в зависимоти от класса
-        marker.color.a = 0.5
-        marker.color.r = 1.0
-        marker.color.g = 1.0
-        marker.color.b = 0.0
+        marker.color.a = 0.6
+        marker.color.r = 0.0
+        marker.color.g = 0.5
+        marker.color.b = 1.0
         
         orientation = Rotation.from_euler("z", angles[0], degrees=True).as_quat()
         marker.pose.orientation.x = orientation[0]
