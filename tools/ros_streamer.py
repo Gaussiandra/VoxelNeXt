@@ -12,16 +12,26 @@ from scipy.spatial.transform import Rotation
 from pcdet.config import cfg, cfg_from_yaml_file
 from sensor_msgs.msg import PointCloud2
 
-from visualization_msgs.msg import Marker
-from visualization_msgs.msg import MarkerArray
+# from visualization_msgs.msg import Marker
+# from visualization_msgs.msg import MarkerArray
 
-from rviz_visualizer import RvizVisualizer
+# from rviz_visualizer import RvizVisualizer
 from streaming_detector import StreamingDetector
 
+from obstacle_detection_msgs.msg import Obstacle, ObstacleArray
 
 class Detection3DHandler:
+    label_to_type_map = {
+        "person" : "Person",
+        "pedestrian" : "Person",
+        "car" : "Car",
+        "bus" : "Car",
+        "track" : "Car"
+    }
+
+    
     def __init__(self):
-        rospy.init_node('pointcloud_detector', anonymous=True)
+        rospy.init_node('voxelnet_detector', anonymous=True)
 
         self.tf_buffer = tf2_ros.Buffer()
         self.listener = tf2_ros.TransformListener(self.tf_buffer)
@@ -30,7 +40,7 @@ class Detection3DHandler:
         self.detector = StreamingDetector(self.cfg, self.args.ckpt)
         self.preds_publisher = None
 
-        self.rviz_publisher = rospy.Publisher('/detection_3d_markers', MarkerArray, queue_size=1) #10?
+        self.oa_publisher = rospy.Publisher('/voxelnext/obstacles', ObstacleArray, queue_size=1) #10?
         self.pc_publisher = rospy.Publisher('/joined_point_cloud', PointCloud2, queue_size=1) #10?
 
         self.dump_points = False
@@ -38,21 +48,23 @@ class Detection3DHandler:
         self.dump_n_frames = 100
         self.points_to_dump = defaultdict(list)
         self.debug_on_nusc_bag = False
-        # self.lidar_names = ["top", "right", ]
+        # self.lidar_names = ["top", "right"]
         self.lidar_names = ["top"]
+        self.frame_id = "base_link"
 
         if self.debug_on_nusc_bag:
-            self.rviz_v = RvizVisualizer(header="lidar_top")
             top_lidar_sub = message_filters.Subscriber('/lidar_top', PointCloud2)
             all_subs = [top_lidar_sub]
             self.tRs_base_link_lidar = [(np.zeros(3), np.eye(3))]
         else:
-            self.rviz_v = RvizVisualizer(header="base_link") # TODO: move to config
             all_subs = []
             self.tRs_base_link_lidar = []
             for lidar_name in self.lidar_names:
                 all_subs.append(message_filters.Subscriber(f'/ouster_{lidar_name}_timestamped/points', PointCloud2))
                 self.tRs_base_link_lidar.append(self.get_tvec_rot_mat_for_lidar(f"os_sensor_{lidar_name}"))
+            
+            # all_subs.append(message_filters.Subscriber(f'/lslidar_point_cloud', PointCloud2))
+            # self.tRs_base_link_lidar.append(self.get_tvec_rot_mat_for_lidar(f"laser_link"))
 
         ts = message_filters.ApproximateTimeSynchronizer(
             all_subs,
@@ -69,7 +81,7 @@ class Detection3DHandler:
     
     def get_tvec_rot_mat_for_lidar(self, lidar_frame_id):
         tf_transform = self.tf_buffer.lookup_transform(
-            "base_link", 
+            self.frame_id, 
             lidar_frame_id, 
             rospy.Time(), 
             timeout=rospy.Duration(2)
@@ -143,14 +155,18 @@ class Detection3DHandler:
         points = np.concatenate(points_list)
 
         return points
+    
+    
+    
+    def map_label_to_type(self, label):
+        return self.label_to_type_map.get(label, "Car")
 
-    def rviz_update(self, pred_dict):
-        # self.rviz_publisher.publish()
+    def send_predicts(self, pred_dict, stamp):
 
-        marker_array = MarkerArray()
-        m = Marker()
-        m.action = Marker.DELETEALL
-        marker_array.markers.append(m)
+        obstacles = ObstacleArray()
+        obstacles.header.frame_id = self.frame_id
+        obstacles.header.stamp = stamp
+
         for idx in range(len(pred_dict["pred_boxes"])):
             bbox = pred_dict["pred_boxes"][idx]
             xyz_center = bbox[: 3]
@@ -160,25 +176,26 @@ class Detection3DHandler:
             score = pred_dict["pred_scores"][idx]
             label = pred_dict["pred_labels"][idx]
             label_name = self.cfg.CLASS_NAMES[label - 1]
+            obs = Obstacle()
+            obs.type = self.map_label_to_type(label_name)
+            obs.confidence = score
+            obs.scale.x = xyz_sizes[0]
+            obs.scale.y = xyz_sizes[1]
+            obs.scale.z = xyz_sizes[2]
+            orientation = Rotation.from_euler("z", angle, degrees=True).as_quat()
+            obs.pose.orientation.x = orientation[0]
+            obs.pose.orientation.y = orientation[1]
+            obs.pose.orientation.z = orientation[2]
+            obs.pose.orientation.w = orientation[3]
+            obs.pose.position.x = xyz_center[0]
+            obs.pose.position.y = xyz_center[1]
+            obs.pose.position.z = xyz_center[2]
             
-            cur_marker = self.rviz_v.get_marker(
-                center=xyz_center,
-                sizes=xyz_sizes,
-                angles=(angle, 0, 0)
-            )
-            marker_array.markers.append(cur_marker)
+            obstacles.obstacles.append(obs)
             
-            str_to_vis = f"{label_name} {score:.2f}"
-            text_cur_marker = self.rviz_v.set_text_beside_marker(
-                cur_marker, 
-                text=str_to_vis
-            )
-            marker_array.markers.append(text_cur_marker)
 
-        self.rviz_publisher.publish(marker_array)
+        self.oa_publisher.publish(obstacles)
     
-    def send_predicts(self):
-        pass
 
     def publish_joined_point_cloud(self, points, stamp):
         data = np.zeros(points.shape[0], dtype=[
@@ -210,8 +227,7 @@ class Detection3DHandler:
         print("predict from nomolized time", time.time() - t1)
         self.publish_joined_point_cloud(points, stamp)
 
-        self.send_predicts()
-        self.rviz_update(pred_dicts[0])
+        self.send_predicts(pred_dicts[0], stamp)
         print("all", time.time() - t)
 
 if __name__ == '__main__':
