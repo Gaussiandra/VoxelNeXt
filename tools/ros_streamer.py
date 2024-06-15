@@ -48,7 +48,7 @@ class Detection3DHandler:
         self.dump_n_frames = 100
         self.points_to_dump = defaultdict(list)
         self.debug_on_nusc_bag = False
-        # self.lidar_names = ["top", "right"]
+        # self.lidar_names = ["top", "right", "left"]
         self.lidar_names = ["top"]
         self.frame_id = "base_link"
 
@@ -60,7 +60,7 @@ class Detection3DHandler:
             all_subs = []
             self.tRs_base_link_lidar = []
             for lidar_name in self.lidar_names:
-                all_subs.append(message_filters.Subscriber(f'/ouster_{lidar_name}_timestamped/points', PointCloud2))
+                all_subs.append(message_filters.Subscriber(f'/ouster_{lidar_name}/points', PointCloud2))
                 self.tRs_base_link_lidar.append(self.get_tvec_rot_mat_for_lidar(f"os_sensor_{lidar_name}"))
             
             # all_subs.append(message_filters.Subscriber(f'/lslidar_point_cloud', PointCloud2))
@@ -217,6 +217,9 @@ class Detection3DHandler:
     def callback(self, *all_lidar_pc):
         t = time.time()
         stamp = rospy.Time.now()
+        if (stamp - all_lidar_pc[0].header.stamp) > rospy.Duration(0.2):
+            print("PAST")
+            return
         print("all_lidar_pc: ", *[m.header for m in all_lidar_pc])
         print("stamp", stamp)
         t1 = time.time()
@@ -228,6 +231,7 @@ class Detection3DHandler:
         self.publish_joined_point_cloud(points, stamp)
 
         self.send_predicts(pred_dicts[0], stamp)
+        # time.sleep(0.2)
         print("all", time.time() - t)
 
 if __name__ == '__main__':
