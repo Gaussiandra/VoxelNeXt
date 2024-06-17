@@ -321,7 +321,7 @@ class VoxelNeXtHead(nn.Module):
             scores_cls = torch.pow(scores[mask], 1 - rectifier[cls]) * torch.pow(iou_preds[mask].squeeze(-1), rectifier[cls])
             labels_cls = labels[mask]
 
-            selected, selected_scores = model_nms_utils.class_agnostic_nms(box_scores=scores_cls, box_preds=boxes_cls, 
+            selected, selected_scores = model_nms_utils.class_agnostic_nms(box_scores=scores_cls.float(), box_preds=boxes_cls.float(), 
                                                         nms_config=nms_configs[cls], score_thresh=None)
 
             box_preds_list.append(boxes_cls[selected])
@@ -459,7 +459,7 @@ class VoxelNeXtHead(nn.Module):
                 final_dict['pred_labels'] = self.class_id_mapping_each_head[idx][final_dict['pred_labels'].long()]
                 if not self.iou_branch:
                     selected, selected_scores = model_nms_utils.class_agnostic_nms(
-                        box_scores=final_dict['pred_scores'], box_preds=final_dict['pred_boxes'],
+                        box_scores=final_dict['pred_scores'].float(), box_preds=final_dict['pred_boxes'].float(),
                         nms_config=post_process_cfg.NMS_CONFIG,
                         score_thresh=None
                     )

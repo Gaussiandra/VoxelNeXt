@@ -48,8 +48,8 @@ class Detection3DHandler:
         self.dump_n_frames = 100
         self.points_to_dump = defaultdict(list)
         self.debug_on_nusc_bag = False
-        # self.lidar_names = ["top", "right", "left"]
-        self.lidar_names = ["top"]
+        self.lidar_names = ["top", "right", "left"]
+        # self.lidar_names = ["top"]
         self.frame_id = "base_link"
 
         if self.debug_on_nusc_bag:
@@ -63,8 +63,8 @@ class Detection3DHandler:
                 all_subs.append(message_filters.Subscriber(f'/ouster_{lidar_name}/points', PointCloud2))
                 self.tRs_base_link_lidar.append(self.get_tvec_rot_mat_for_lidar(f"os_sensor_{lidar_name}"))
             
-            # all_subs.append(message_filters.Subscriber(f'/lslidar_point_cloud', PointCloud2))
-            # self.tRs_base_link_lidar.append(self.get_tvec_rot_mat_for_lidar(f"laser_link"))
+            all_subs.append(message_filters.Subscriber(f'/lslidar_point_cloud', PointCloud2))
+            self.tRs_base_link_lidar.append(self.get_tvec_rot_mat_for_lidar(f"laser_link"))
 
         ts = message_filters.ApproximateTimeSynchronizer(
             all_subs,
@@ -131,10 +131,14 @@ class Detection3DHandler:
             # points[..., 4] = 0 # for timestamp
 
             points = np.array(points, dtype=np.float32).reshape(-1, n_used_features)
+            Rs = np.linalg.norm(points[:, :3], axis=1)
+            # points = points[(Rs < 45) & (Rs > 1)]
+            
             points[:, :3] = self.translate_and_rotate(
                 points[:, :3], 
                 *self.tRs_base_link_lidar[idx]
             )
+            points = points[(points[:, 2] < 4)&(Rs < 45) & (Rs > 1)]
             # points[:, 3] *= 0.1464823
             points_list.append(points)
 

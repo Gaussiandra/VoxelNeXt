@@ -5,6 +5,25 @@ from pcdet.models import build_network, load_data_to_gpu
 from pcdet.utils import common_utils
 import matplotlib.pyplot as plt
 import time
+try:
+    import kornia
+except:
+    pass 
+
+HALF = True
+
+def load_data_to_gpu_half(batch_dict):
+    for key, val in batch_dict.items():
+        if not isinstance(val, np.ndarray):
+            continue
+        elif key in ['frame_id', 'metadata', 'calib']:
+            continue
+        elif key in ['images']:
+            batch_dict[key] = kornia.image_to_tensor(val).float().cuda().contiguous().half()
+        elif key in ['image_shape']:
+            batch_dict[key] = torch.from_numpy(val).int().cuda().half()
+        else:
+            batch_dict[key] = torch.from_numpy(val).float().cuda().half()
 
 class StreamingDetector:
     def __init__(self, cfg, ckpt_path):
@@ -30,6 +49,8 @@ class StreamingDetector:
         )
         self.model.cuda()
         self.model.eval()
+        if HALF:
+            self.model.half()
 
     def predict_from_normalized_data(self, points):
         data_dict = {
@@ -154,11 +175,14 @@ class StreamingDetector:
         # ax[1].grid(True)
         # plt.savefig(f"/workspace/level5_bags/intensity_points_in_voxels_{suffix}.png", dpi=400, bbox_inches='tight')
         # assert False
-
-        load_data_to_gpu(data_dict)
+        if HALF:
+            load_data_to_gpu_half(data_dict)
+        else:
+            load_data_to_gpu(data_dict)
         print("load", time.time() - t)
         t = time.time()
         # TODO: add FP16 convertion
+
         with torch.no_grad():
             pred_dicts, _ = self.model(data_dict)
             print(pred_dicts[0]["pred_boxes"].shape)
