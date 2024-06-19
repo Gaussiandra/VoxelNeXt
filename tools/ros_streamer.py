@@ -132,13 +132,14 @@ class Detection3DHandler:
 
             points = np.array(points, dtype=np.float32).reshape(-1, n_used_features)
             Rs = np.linalg.norm(points[:, :3], axis=1)
-            # points = points[(Rs < 45) & (Rs > 1)]
+            # points = points[(Rs < 55) & (Rs > 3) & (points[:, 2] < 5)]
+            # points = points[(points[:, 0] > 0.001)&((points[:, 0] < -0.001))]
             
             points[:, :3] = self.translate_and_rotate(
                 points[:, :3], 
                 *self.tRs_base_link_lidar[idx]
             )
-            points = points[(points[:, 2] < 4)&(Rs < 45) & (Rs > 1)]
+            points = points[(points[:, 2] < 3.2)&(Rs < 50) & (Rs > 2)]
             # points[:, 3] *= 0.1464823
             points_list.append(points)
 
