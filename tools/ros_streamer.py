@@ -26,7 +26,13 @@ class Detection3DHandler:
         "pedestrian" : "Person",
         "car" : "Car",
         "bus" : "Car",
-        "track" : "Car"
+        "track" : "Car",
+        "construction_vehicle" : "Car",
+        "trailer" : "Car", 
+        "motorcycle" : "Car",
+        "bicycle" : "Car",
+        "traffic_cone" : "traffic_cone",
+        "barrier" : "barrier"
     }
 
     
@@ -176,7 +182,7 @@ class Detection3DHandler:
             bbox = pred_dict["pred_boxes"][idx]
             xyz_center = bbox[: 3]
             xyz_sizes = bbox[3: 6]
-            angle = np.rad2deg(bbox[6].cpu())
+            angle = bbox[6].cpu()
 
             score = pred_dict["pred_scores"][idx]
             label = pred_dict["pred_labels"][idx]
@@ -187,7 +193,7 @@ class Detection3DHandler:
             obs.scale.x = xyz_sizes[0]
             obs.scale.y = xyz_sizes[1]
             obs.scale.z = xyz_sizes[2]
-            orientation = Rotation.from_euler("z", angle, degrees=True).as_quat()
+            orientation = Rotation.from_euler("z", angle, degrees=False).as_quat()
             obs.pose.orientation.x = orientation[0]
             obs.pose.orientation.y = orientation[1]
             obs.pose.orientation.z = orientation[2]
