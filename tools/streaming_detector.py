@@ -1,4 +1,8 @@
+HALF = False
+
 import torch
+if HALF:
+    import spconv as spconv_core; spconv_core.constants.SPCONV_ALLOW_TF32 = True
 import numpy as np
 from pcdet.datasets.nuscenes.nuscenes_dataset import NuScenesDataset
 from pcdet.models import build_network, load_data_to_gpu
@@ -10,7 +14,7 @@ try:
 except:
     pass 
 
-HALF = True
+
 
 def load_data_to_gpu_half(batch_dict):
     for key, val in batch_dict.items():
