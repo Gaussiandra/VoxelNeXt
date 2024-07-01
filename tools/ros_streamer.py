@@ -170,7 +170,7 @@ class Detection3DHandler:
     
     
     def map_label_to_type(self, label):
-        return self.label_to_type_map.get(label, "Car")
+        return self.label_to_type_map.get(label, "")
 
     def send_predicts(self, pred_dict, stamp):
 
@@ -188,7 +188,10 @@ class Detection3DHandler:
             label = pred_dict["pred_labels"][idx]
             label_name = self.cfg.CLASS_NAMES[label - 1]
             obs = Obstacle()
-            obs.type = self.map_label_to_type(label_name)
+            ty = self.map_label_to_type(label_name)
+            if ty != "Car" and ty != "Person":
+                continue
+            obs.type = ty
             obs.confidence = score
             obs.scale.x = xyz_sizes[0]
             obs.scale.y = xyz_sizes[1]
@@ -229,7 +232,7 @@ class Detection3DHandler:
         t = time.time()
         stamp = rospy.Time.now()
         if (stamp - all_lidar_pc[0].header.stamp) > rospy.Duration(0.2):
-            print("PAST")
+            print("PAST", stamp,  all_lidar_pc[0].header.stamp)
             return
         print("all_lidar_pc: ", *[m.header for m in all_lidar_pc])
         print("stamp", stamp)
