@@ -193,7 +193,7 @@ class Detection3DHandler:
                 continue
             obs.type = ty
             obs.confidence = score
-            obs.scale.x = xyz_sizes[0]
+            obs.scale.x = xyz_sizes[0] - 0.07
             obs.scale.y = xyz_sizes[1]
             obs.scale.z = xyz_sizes[2]
             orientation = Rotation.from_euler("z", angle, degrees=False).as_quat()
